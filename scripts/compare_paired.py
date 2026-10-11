@@ -25,10 +25,15 @@ def paired_stats(base_values, new_values, rng, bootstrap=2000, permutations=1000
     n = len(diff)
     if n == 0:
         return {"n": 0}
-    boot_idx = rng.integers(0, n, size=(bootstrap, n))
-    boot_means = diff[boot_idx].mean(axis=1)
-    signs = rng.choice(np.array([-1.0, 1.0]), size=(permutations, n))
-    null_means = (diff[None, :] * signs).mean(axis=1)
+    boot_means = np.concatenate([
+        diff[rng.integers(0, n, size=(min(256, bootstrap - start), n))].mean(axis=1)
+        for start in range(0, bootstrap, 256)
+    ]) if bootstrap else np.empty(0)
+    null_means = np.concatenate([
+        (diff[None, :] * rng.choice(np.array([-1.0, 1.0]),
+                                    size=(min(256, permutations - start), n))).mean(axis=1)
+        for start in range(0, permutations, 256)
+    ]) if permutations else np.empty(0)
     observed = float(diff.mean())
     p_value = float((np.count_nonzero(np.abs(null_means) >= abs(observed)) + 1) /
                     (permutations + 1))
