@@ -146,10 +146,11 @@ def main():
         history_asins = row.get("history", "").split()
         history = [by_asin[a]["item_id"] for a in history_asins if a in by_asin]
         target = by_asin.get(row["parent_asin"])
+        if not history:
+            return None
         prefix = [(item, int(i), 0.0) for item, i in
                   zip(history, [int(row["timestamp"]) - (len(history) - j) * 86400 for j in range(len(history))])]
-        state = state_for(prefix or [(target["item_id"], int(row["timestamp"]), float(row["rating"]))],
-                          by_id, category_names)
+        state = state_for(prefix, by_id, category_names)
         return {"case_id": f"{split}_{row['user_id']}", "user_id": row["user_id"], "split": split,
                 "history": history, "target_id": target["item_id"] if target else 0,
                 "target_movie_id": target["item_id"] if target else 0,
@@ -161,7 +162,8 @@ def main():
                   for u in eligible_users]
     eval_rows = {}
     for name, raw_rows in (("valid", valid_raw), ("test", test_raw)):
-        rows = [make_row(r, name) for r in raw_rows if r["user_id"] in keep_users and r["user_id"] in events]
+        rows = [x for r in raw_rows if r["user_id"] in keep_users and r["user_id"] in events
+                for x in [make_row(r, name)] if x is not None]
         eval_rows[name] = rows
     for name, rows in [("train", train_rows), *eval_rows.items()]:
         with (out / f"{name}.jsonl").open("w", encoding="utf-8") as f:
