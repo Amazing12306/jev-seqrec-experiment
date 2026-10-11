@@ -81,6 +81,14 @@
 - 请求构建脚本已修正 `recent_movie_ids` 的 MovieLens 原始 `movie_id` 与编码 `item_id` 的命名空间映射；旧请求缓存需重建后才能调用。
 - 本地代码仓库根目录为 `D:\PyProject\Jev\jev_seqrec_experiment`，A5000 工作树为 `/media/sdust307/disk3/lyk/jev_seqrec_experiment`；两者通过 Git 保持代码一致，数据仍留在 A5000 的 `data/`。
 
+## 2026-10-11 Jev 凭据与接口 smoke
+
+- A5000 `llm4rec` 已检测到 `JEV_API_KEY_PRESENT`；key 内容未输出、未写入仓库。
+- endpoint：`https://ai.xiaohaima-edu.com/v1/systemone`；请求模型：`jev-latest`；服务返回的实际模型：`jev-1.13.0`。
+- 3 条 validation smoke 请求全部成功，均包含 200 个候选，错误数为 0；服务返回了完整概率分布、confidence 和 token usage。
+- smoke 的端到端延迟约为 9.7–29.9 秒；这只是接口连通性检查，不能作为最终延迟结论。
+- 下一步可生成完整 validation cache；随后在 validation 冻结融合权重和 confidence threshold，再评估 test。
+
 ## 当前文件位置与证据范围
 
 - A5000 项目根目录：`/media/sdust307/disk3/lyk/jev_seqrec_experiment`。
