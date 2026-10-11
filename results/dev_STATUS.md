@@ -1,6 +1,43 @@
 # Jev × 序列推荐实验状态（更新于 2026-10-11）
 
-## 最新进度：三 seed Jev test 已完成
+## 最新进度：full-SASRec × Jev 正式 test 已完成
+
+### 正式 full-SASRec 结果
+
+- 上游实现：`SASRec.pytorch` pinned revision `b253407b3c5d6ec3201a39767a572f44fd5ef6d0`；`maxlen=200`、hidden size 50、2 blocks、1 head，validation early stopping。
+- 三个 seed 均为完整训练配置；每个 test case 有 200 个 SASRec 候选，Jev 只做候选内重排，不改变召回。
+- 6 个 response cache 均覆盖 5,779 个 case、成功率 100%；validation seed2028 的一次超时已补跑，合并时去重。
+
+| Seed | Base NDCG@10 | Jev NDCG@10 | Δ | Conflict base → Jev | Strong conflict base → Jev | alpha / threshold / Jev coverage |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2027 | 0.04273 | 0.04081 | −0.00192 | 0.03976 → 0.03575 | 0.04697 → 0.04622 | 0.75 / none / 100.0% |
+| 2028 | 0.04406 | 0.04407 | +0.00001 | 0.03874 → 0.03901 | 0.04619 → 0.04667 | 0.75 / 0.4 / 4.6% |
+| 2029 | 0.04655 | 0.04666 | +0.00011 | 0.04360 → 0.04309 | 0.05792 → 0.05642 | 0.25 / 0.4 / 4.2% |
+
+用户级三 seed 配对结果：
+
+| 分组 | Base | Jev | Δ | 95% bootstrap CI | paired permutation p |
+|---|---:|---:|---:|---:|---:|
+| 全部 | 0.04445 | 0.04384 | −0.00060 | [−0.00142, 0.00022] | 0.138 |
+| 冲突 | 0.04070 | 0.03928 | −0.00142 | [−0.00300, 0.00015] | 0.074 |
+| 强冲突 | 0.05036 | 0.04977 | −0.00059 | [−0.00331, 0.00215] | 0.682 |
+| 可判定非冲突 | 0.03204 | 0.03056 | −0.00149 | [−0.00354, 0.00052] | 0.148 |
+
+- Base candidate recall@200：seed 2027/2028/2029 为 `0.66205/0.65842/0.67053`，均值 `0.66367`；Jev 不改变该数值。
+- validation 选择标准仍是预先设定的“冲突 NDCG@10，其次总体 NDCG@10”。seed2028/2029 的最优阈值 `0.4` 只在约 4% case 上启用 Jev，其余回退 Base；因此必须同时报告 coverage，不能把接近 Base 的结果解释为全量 Jev 有效。
+- 全量不设阈值的敏感性结果更差：alpha=`0.75` 的三 seed 平均总体 NDCG@10 为 `0.04159`，alpha=`0.5` 为 `0.03779`，Jev-only（alpha=`0`）为 `0.02945`。
+
+### 正式结果结论
+
+当前证据支持：完整 SASRec 的候选池质量明显高于开发版，hosted Jev 在该 MovieLens 管线上没有带来总体、冲突或强冲突的显著收益；它也没有改善召回。开发版的正增益不能外推为完整 SASRec 的主结果。Jev 的潜在价值仍需在 IDNP 或带可靠文本 metadata 的数据集上，通过更稳定的置信度校准、覆盖率约束和蒸馏方案重新验证。
+
+### Hosted Jev 调用审计
+
+- 真实调用总数：34,674；实际返回模型：`jev-1.13.0`；成功率 100%。
+- 输入 token：264,718,450；输出 token：70,076,154；成功请求延迟中位数 989.7 ms，P95 2,216.6 ms。
+- confidence 中位数 0.15；`confidence >= 0.4` 的比例仅 4.27%，解释了阈值策略的低 coverage。
+
+### 历史开发版 Jev 结果（不作为正式主结果）
 
 - 数据：MovieLens-1M 正反馈，5,779 名用户、每 seed 5,779 个 test case。三个 seed 使用相同用户集合；统计推断先在用户内平均 seed 结果，再按用户 bootstrap 和 paired sign permutation。
 - Jev：validation 对三个 seed 均选择 `alpha=0`、无置信度阈值；test 固定此设置。调用模型实际版本为 `jev-1.13.0`。
@@ -50,9 +87,9 @@
 
 ## 当前阶段与下一步
 
-1. 完整 SASRec seed2027 已按 pinned revision 和完整配置完成：best epoch 80；test NDCG@10=0.04273，candidate recall@200=0.66205。seed2028、seed2029 完整训练仍在 A5000 运行。
-2. full-SASRec seed2027/2028 的 Jev validation cache 已启动；完成后在 validation 冻结融合参数，再调用 full-SASRec test。当前开发版 Jev 结果不能替代 full-SASRec 比较。
-3. 三 seed full-SASRec × Jev 完成后，再接入 IDNP 官方实现并扩展到带文本 metadata 的数据集，评估外部有效性。
+1. 三 seed full-SASRec 训练、Jev validation/test cache、冻结调参和配对统计均已完成；正式结果见上文。
+2. 当前不能把 hosted Jev 的收益写成已验证结论：full-SASRec 上主比较为不显著且方向接近零，低 confidence coverage 是主要限制。
+3. 下一步接入 IDNP 官方实现；随后在带可靠文本 metadata 的 Amazon/Movies & TV 数据上重复相同协议，并加入覆盖率约束、confidence calibration、候选顺序鲁棒性和本地蒸馏对照。
 
 ## 历史 P0/P1 执行状态（2026-10-11）
 
