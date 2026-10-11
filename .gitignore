@@ -15,6 +15,7 @@ checkpoints/*
 *.py[cod]
 .env
 .env.*
+.envkey
 *secret*
 *credential*
 *.key
