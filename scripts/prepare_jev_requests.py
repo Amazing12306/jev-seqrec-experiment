@@ -90,18 +90,18 @@ def main():
             elif args.state_variant == "long_only":
                 state_payload.pop("recent_session_intent")
                 state_payload.pop("recent_items")
+                state_payload.pop("time_gaps_seconds")
+                state_payload.pop("current_session_length")
                 state_payload.pop("conflict")
-                state_payload["decision_scope"] = "Use the long-term preference only."
+                state_payload["decision_scope"] = "Use the long-term preference only; recent-session and time-gap features are unavailable."
             elif args.state_variant == "no_gap":
                 state_payload.pop("time_gaps_seconds")
                 state_payload["decision_scope"] = "Use long-term preference and recent session; time gaps are unavailable."
             elif args.state_variant == "no_conflict":
                 state_payload.pop("conflict")
                 state_payload["decision_scope"] = "Infer the balance between long-term preference and recent session without a conflict label."
-            else:
-                state_payload["decision_scope"] = "Balance long-term preference, recent session, and observed time gaps."
             variant_instructions = {
-                "full": "Balance long-term preference with the current session intent and observed time gaps.",
+                "full": "Balance long-term preference with the current session intent and the observed time gaps.",
                 "recent_only": "Use only the recent session intent and observed time gaps.",
                 "long_only": "Use only the long-term preference.",
                 "no_gap": "Balance long-term preference and recent session intent; time gaps are unavailable.",
