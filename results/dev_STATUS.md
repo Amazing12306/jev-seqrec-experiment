@@ -123,6 +123,20 @@ pilot 的 paired permutation p 值（相对 SASRec base）均未达到稳定的�
 
 ## 当前阶段与下一步
 
+## 2026-10-12：Amazon v2 数据审计与召回门控
+
+- 发现并修复两项影响 Amazon pilot 有效性的管线问题：原始 Amazon Reviews'23 时间戳为毫秒但按秒计算；抽样用户训练时却保留完整训练目录，造成大量未训练 item embedding。修复后使用 `data/amazon_movies_2k_v2`：时间统一为秒、`catalog_scope=subset`、语义类别过滤，28,115 个商品均有训练事件。
+- v2 数据审计：valid/test 为 7,314/4,995 case；冲突 case 为 358/195，冲突用户为 105/56；未发现目标时间之后的历史泄漏。
+
+| retriever | valid NDCG@10 | valid candidate recall@200 | test NDCG@10 | test candidate recall@200 |
+|---|---:|---:|---:|---:|
+| SASRec seed2027 | 0.00210 | 1.46% | 0.00069 | 0.52% |
+| Popularity | 0.00172 | 1.34% | 0.00064 | 0.72% |
+| Markov1 | 0.00270 | 1.45% | 0.00168 | 0.84% |
+
+- 这些召回率按全部 case 计算；warm target 条件下也只有约 5.46%（valid）和 2.63%（test）的 SASRec Top-200 覆盖。根据预设停止条件，暂不向该候选池发送完整 Jev 请求，也不把 v2 的 rich/plain pilot 当作语义收益证据。
+- 下一步优先：扩大可训练用户覆盖或采用更强的候选生成器（例如全量训练用户的 item-transition/多兴趣召回），确认 candidate recall@200 后再冻结候选池并调用 Jev；Jev 评估必须继续使用候选内 `rank_candidate`，不能使用全目录 `rank`。
+
 ## 2026-10-12：Amazon Movies & TV rich metadata pilot 完成
 
 - 请求与响应完整性：plain/rich 各 126 条；case ID 均唯一；错误 0；服务模型均为 `jev-1.13.0`；API 成功率 100%。
