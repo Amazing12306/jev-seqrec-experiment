@@ -25,6 +25,9 @@ def main():
     ap.add_argument("--candidates", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--base-method", default="SASRec-dev")
+    ap.add_argument("--state-variant", choices=("full", "recent_only", "long_only", "no_gap", "no_conflict"),
+                    default="full",
+                    help="Ablate Jev inputs while keeping the candidate pool and case IDs fixed")
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -80,6 +83,33 @@ def main():
                     "recent_top_genre": state["recent_top_genre"],
                 },
             }
+            if args.state_variant == "recent_only":
+                state_payload.pop("long_term_preferences")
+                state_payload.pop("conflict")
+                state_payload["decision_scope"] = "Use the recent session and time gaps only."
+            elif args.state_variant == "long_only":
+                state_payload.pop("recent_session_intent")
+                state_payload.pop("recent_items")
+                state_payload.pop("conflict")
+                state_payload["decision_scope"] = "Use the long-term preference only."
+            elif args.state_variant == "no_gap":
+                state_payload.pop("time_gaps_seconds")
+                state_payload["decision_scope"] = "Use long-term preference and recent session; time gaps are unavailable."
+            elif args.state_variant == "no_conflict":
+                state_payload.pop("conflict")
+                state_payload["decision_scope"] = "Infer the balance between long-term preference and recent session without a conflict label."
+            else:
+                state_payload["decision_scope"] = "Balance long-term preference, recent session, and observed time gaps."
+            variant_instructions = {
+                "full": "Balance long-term preference with the current session intent and observed time gaps.",
+                "recent_only": "Use only the recent session intent and observed time gaps.",
+                "long_only": "Use only the long-term preference.",
+                "no_gap": "Balance long-term preference and recent session intent; time gaps are unavailable.",
+                "no_conflict": "Balance long-term preference, recent session intent, and time gaps without relying on a conflict label.",
+            }
+            instruction = ("Choose the candidate most likely to be the user's next positive "
+                           "interaction. " + variant_instructions[args.state_variant] +
+                           " Return probabilities for every option.")
             criteria = {
                 key: (f"Movie/item title: {value['title']}; genres: {', '.join(value['genres'])}")
                 for key, value in choices.items()
@@ -92,9 +122,7 @@ def main():
                     "next_item": {
                         "type": "choice",
                         "instructions": (
-                            "Choose the candidate most likely to be the user's next positive "
-                            "interaction. Balance long-term preference with the current session "
-                            "intent and the observed time gaps. Return probabilities for every option."),
+                            instruction),
                         "criteria": criteria,
                     }
                 },
@@ -106,6 +134,7 @@ def main():
                     "candidate_source": args.candidates,
                     "base_scores": [float(x) for x in case["candidate_scores"]],
                     "state_source": "MovieLens rating-session proxy; no target fields included",
+                    "state_variant": args.state_variant,
                     "api_called": False,
                 },
             }
