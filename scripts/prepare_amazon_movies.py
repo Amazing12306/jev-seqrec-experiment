@@ -144,13 +144,22 @@ def main():
 
     def make_row(row, split):
         history_asins = row.get("history", "").split()
-        history = [by_asin[a]["item_id"] for a in history_asins if a in by_asin]
+        user_events = sorted(events[row["user_id"]], key=lambda x: (x[1], x[0]))
+        prefix_events = []
+        cursor = 0
+        for asin in history_asins:
+            while cursor < len(user_events) and user_events[cursor][0] != asin:
+                cursor += 1
+            if cursor >= len(user_events):
+                break
+            if asin in by_asin:
+                prefix_events.append((by_asin[asin]["item_id"], user_events[cursor][1], user_events[cursor][2]))
+            cursor += 1
+        history = [x[0] for x in prefix_events]
         target = by_asin.get(row["parent_asin"])
         if not history:
             return None
-        prefix = [(item, int(i), 0.0) for item, i in
-                  zip(history, [int(row["timestamp"]) - (len(history) - j) * 86400 for j in range(len(history))])]
-        state = state_for(prefix, by_id, category_names)
+        state = state_for(prefix_events, by_id, category_names)
         return {"case_id": f"{split}_{row['user_id']}", "user_id": row["user_id"], "split": split,
                 "history": history, "target_id": target["item_id"] if target else 0,
                 "target_movie_id": target["item_id"] if target else 0,
