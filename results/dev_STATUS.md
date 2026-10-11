@@ -1,5 +1,21 @@
 # Jev × 序列推荐实验状态（更新于 2026-10-11）
 
+## 2026-10-12：Jev 输入消融 pilot
+
+为验证长期偏好、近期会话、时间间隔和显式冲突标签的作用，在 full-SASRec seed2027 的同一 Top-200 validation 候选池上构造了固定 case 子集：100 个冲突 case（其中 40 个 strong conflict）和 100 个可判定非冲突 case。每个变体调用 200 次 Jev，成功率均为 100%；使用同一融合权重 `alpha=0.75`，不使用 confidence 阈值。该结果是机制诊断 pilot，不替代三 seed 全量主实验。
+
+| Jev 输入 | 全部 ΔNDCG@10 | 冲突 Δ | 强冲突 Δ | 非冲突 Δ | 相对 full control 的全部 Δ |
+|---|---:|---:|---:|---:|---:|
+| full control | +0.00101 | +0.00445 | +0.01861 | −0.00244 | — |
+| recent-only | −0.00653 | −0.01159 | +0.00651 | −0.00147 | −0.00754 |
+| long-only | +0.00922 | −0.00096 | +0.00923 | +0.01939 | +0.00821 |
+| no-gap | +0.00488 | +0.00820 | +0.01861 | +0.00157 | +0.00388 |
+| no-conflict-label | −0.00108 | +0.00013 | +0.01898 | −0.00230 | −0.00209 |
+
+pilot 的 paired permutation p 值（相对 SASRec base）均未达到稳定的整体显著性；`no-gap` 相对 full control 的整体差异为 `p=0.032`，需要在随机抽样和全量 validation 上复核。当前方向性证据支持继续保留 long/recent 联合输入，并单独检验显式 conflict label 是否造成提示依赖；不能据此声称 Jev 已提升正式指标。
+
+代码新增 `scripts/prepare_jev_requests.py --state-variant`，支持 `full`、`recent_only`、`long_only`、`no_gap` 和 `no_conflict`。pilot 原始请求、响应和配对统计保存在 A5000 的 `results/jev_ablation_pilot/`，不进入 Git。
+
 ## 最新进度：full-SASRec × Jev 正式 test 已完成
 
 ### 正式 full-SASRec 结果
