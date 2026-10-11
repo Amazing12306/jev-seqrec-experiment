@@ -181,6 +181,27 @@ def main():
     if args.state_categories == "semantic":
         category_names = sorted({g for item in items for g in item["genres"]})
 
+    if args.catalog_scope == "subset":
+        # Drop items that occur only in sampled users whose surviving sequence
+        # is too short for training, then remap IDs so every catalog embedding
+        # is represented by at least one training event.
+        usable_users_preview = {
+            user for user in eligible_users
+            if sum(asin in by_asin for asin, _, _ in events[user]) >= 2
+        }
+        usable_asins = {
+            asin for user in usable_users_preview
+            for asin, _, _ in events[user] if asin in by_asin
+        }
+        items = [item for item in items if item["asin"] in usable_asins]
+        for item_id, item in enumerate(items, start=1):
+            item["item_id"] = item_id
+            item["movie_id"] = item_id
+        by_id = {x["item_id"]: x for x in items}
+        by_asin = {x["asin"]: x for x in items}
+        if args.state_categories == "semantic":
+            category_names = sorted({g for item in items for g in item["genres"]})
+
     # Published validation/test histories contain observed held-out events as
     # well as training events.  Recover these timestamps too, using strictly
     # earlier events and only ASINs present in the supplied observed history.
@@ -253,9 +274,7 @@ def main():
         eval_rows[name] = rows
     supported = {i for row in train_rows for i in row["items"]}
     if args.catalog_scope == "subset" and supported != set(by_id):
-        # Users with only one surviving item may have introduced catalog items.
-        # Do not silently proceed with untrained catalog embeddings.
-        raise ValueError("Subset catalog contains unsupported items; increase user support or use full scope")
+        raise ValueError("Subset catalog invariant failed after remapping")
     if any(r["state"]["state_cutoff"] >= r["target_timestamp_seconds"] for rows in eval_rows.values() for r in rows):
         raise ValueError("Target-time leakage in observed prefix")
     for name, rows in [("train", train_rows), *eval_rows.items()]:
