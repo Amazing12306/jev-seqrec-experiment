@@ -146,7 +146,7 @@ def main():
     by_id = {x["item_id"]: x for x in items}
     by_asin = {x["asin"]: x for x in items}
 
-    def make_row(row, split):
+    def make_row(row, split, row_index):
         history_asins = row.get("history", "").split()
         user_events = sorted(events[row["user_id"]], key=lambda x: (x[1], x[0]))
         prefix_events = []
@@ -164,7 +164,8 @@ def main():
         if not history:
             return None
         state = state_for(prefix_events, by_id, category_names, session_gap_days=args.session_gap_days)
-        return {"case_id": f"{split}_{row['user_id']}", "user_id": row["user_id"], "split": split,
+        case_id = f"{split}_{row['user_id']}_{row['timestamp']}_{row['parent_asin']}_{row_index}"
+        return {"case_id": case_id, "user_id": row["user_id"], "split": split,
                 "history": history, "target_id": target["item_id"] if target else 0,
                 "target_movie_id": target["item_id"] if target else 0,
                 "target_known": bool(target), "target_train_frequency": target["train_frequency"] if target else 0,
@@ -177,8 +178,9 @@ def main():
     usable_users = {row["user_id"] for row in train_rows}
     eval_rows = {}
     for name, raw_rows in (("valid", valid_raw), ("test", test_raw)):
-        rows = [x for r in raw_rows if r["user_id"] in usable_users and r["user_id"] in events
-                for x in [make_row(r, name)] if x is not None]
+        rows = [x for row_index, r in enumerate(raw_rows)
+                if r["user_id"] in usable_users and r["user_id"] in events
+                for x in [make_row(r, name, row_index)] if x is not None]
         eval_rows[name] = rows
     for name, rows in [("train", train_rows), *eval_rows.items()]:
         with (out / f"{name}.jsonl").open("w", encoding="utf-8") as f:

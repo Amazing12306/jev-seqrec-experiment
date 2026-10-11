@@ -54,6 +54,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=2027)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--eval-only", action="store_true",
+                    help="Evaluate an existing model.pt on the current valid/test files")
     args = ap.parse_args()
     cfg = read_config(ROOT / args.config)
     mc = cfg["model"]
@@ -85,6 +87,20 @@ def main():
             torch.nn.init.xavier_normal_(param.data)
     model.pos_emb.weight.data[0, :] = 0
     model.item_emb.weight.data[0, :] = 0
+    if args.eval_only:
+        checkpoint = out / "model.pt"
+        if not checkpoint.exists():
+            raise SystemExit(f"missing checkpoint: {checkpoint}")
+        state = torch.load(checkpoint, map_location=device, weights_only=False)
+        model.load_state_dict(state["model"])
+        for split in ("valid", "test"):
+            rows = valid_rows if split == "valid" else read_jsonl(data / "test.jsonl")
+            records = evaluate_catalog(model, rows, mc["maxlen"], batch_size=mc["eval_batch_size"],
+                                       exclude_seen=mc["exclude_seen"])
+            write_records(out / f"{split}_candidates.jsonl", records)
+            write_json(out / f"{split}_metrics.json", result_metrics(records))
+        print(json.dumps({"status": "eval_complete", "out": args.out}), flush=True)
+        return
     optimizer = torch.optim.Adam(model.parameters(), lr=mc["learning_rate"],
                                  betas=tuple(mc["adam_betas"]))
     rng = np.random.default_rng(args.seed)
