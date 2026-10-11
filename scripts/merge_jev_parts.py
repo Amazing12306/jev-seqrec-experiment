@@ -22,7 +22,8 @@ def read_rows(paths):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pilot", required=True)
+    ap.add_argument("--pilot", default=None,
+                    help="Optional pilot JSONL; omit when all responses are shards")
     ap.add_argument("--parts-glob", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--manifest", required=True)
@@ -32,7 +33,7 @@ def main():
                     help="Candidate JSONL whose case_id set defines expected coverage")
     args = ap.parse_args()
 
-    paths = [args.pilot] + sorted(glob.glob(args.parts_glob))
+    paths = ([args.pilot] if args.pilot else []) + sorted(glob.glob(args.parts_glob))
     if not paths:
         raise SystemExit("no Jev response files found")
 
