@@ -24,6 +24,7 @@ def main():
     ap.add_argument("--data", default="data/ml1m")
     ap.add_argument("--candidates", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--base-method", default="SASRec-dev")
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -101,7 +102,7 @@ def main():
                     "target_id": int(case["target_id"]),
                     "target_known": bool(case["target_known"]),
                     "candidate_count": len(choices),
-                    "base_method": "SASRec-dev",
+                    "base_method": args.base_method,
                     "candidate_source": args.candidates,
                     "base_scores": [float(x) for x in case["candidate_scores"]],
                     "state_source": "MovieLens rating-session proxy; no target fields included",
