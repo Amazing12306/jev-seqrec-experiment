@@ -1,0 +1,212 @@
+project: jev_seqrec_experiment
+method_name: sequence_aware_jev_reranking
+status: planned
+remote_root: /media/sdust307/disk3/lyk/jev_seqrec_experiment
+storage:
+  raw_data_root: /media/sdust307/disk2/lyk/jev_data_raw
+  processed_data_root: /media/sdust307/disk3/lyk/jev_seqrec_experiment/data
+  checkpoint_root: /media/sdust307/disk2/lyk/jev_checkpoints
+  do_not_store_api_keys_in_repo: true
+
+hardware:
+  gpu: RTX_A5000
+  expected_vram_gib: 24
+  current_shared_gpu_warning: true
+  env: llm4rec
+  python: "3.9"
+  torch: "2.5.1"
+  torch_cuda: "11.8"
+
+seed:
+  main: [2027, 2028, 2029]
+  recommended: [2027, 2028, 2029, 2030, 2031]
+
+data:
+  primary:
+    - amazon_books
+    - amazon_movies_tv
+    - amazon_video_games
+  secondary:
+    - movielens_1m
+  optional:
+    - retailrocket
+    - yoochoose
+  user_min_interactions: 10
+  item_min_interactions: 5
+  implicit_positive_rule:
+    amazon: review_or_rating
+    movielens: rating_ge_4
+  session_gap_minutes: 30
+  session_gap_sensitivity: [15, 60]
+  short_window_k: 5
+  short_window_sensitivity: [3, 10]
+  long_decay_days: 90
+  long_decay_sensitivity: [30, 180]
+  chronological_split:
+    type: per_user_leave_last_two
+    validation: second_last
+    test: last
+  candidate_sizes: [20, 50, 100, 200]
+  negatives_per_positive: 100
+  conflict:
+    jsd_strong: 0.5
+    jsd_medium: 0.2
+    require_top_category_mismatch: true
+    require_long_and_short_candidate_pair: true
+    manifest: data/conflict_manifest.parquet
+
+models:
+  local_baselines:
+    - popularity
+    - random
+    - gru4rec_or_narm
+    - sasrec
+    - bert4rec
+    - idnp_official
+    - dcnv2_or_mlp_ranker
+  variants:
+    - id: A
+      name: short_only
+      long: false
+      recent: true
+      time_gap: false
+      behavior_type: false
+      fusion: none
+      jev: false
+    - id: B
+      name: long_only
+      long: true
+      recent: false
+      time_gap: false
+      behavior_type: false
+      fusion: none
+      jev: false
+    - id: C
+      name: long_recent_concat
+      long: true
+      recent: true
+      time_gap: false
+      behavior_type: false
+      fusion: concat
+      jev: false
+    - id: D
+      name: long_recent_gated
+      long: true
+      recent: true
+      time_gap: false
+      behavior_type: false
+      fusion: gated
+      jev: false
+    - id: E
+      name: gated_plus_gap
+      long: true
+      recent: true
+      time_gap: true
+      behavior_type: false
+      fusion: gated
+      jev: false
+    - id: F
+      name: gated_plus_behavior
+      long: true
+      recent: true
+      time_gap: false
+      behavior_type: true
+      fusion: gated
+      jev: false
+    - id: G
+      name: full_local_state
+      long: true
+      recent: true
+      time_gap: true
+      behavior_type: true
+      fusion: gated
+      jev: false
+    - id: H
+      name: idnp_plus_jev
+      long: idnp
+      recent: idnp
+      time_gap: true
+      behavior_type: true
+      fusion: gated
+      jev: choice
+    - id: I
+      name: confidence_gated_jev
+      long: idnp_or_G
+      recent: idnp_or_G
+      time_gap: true
+      behavior_type: true
+      fusion: gated
+      jev: choice
+      fallback: base
+    - id: J
+      name: jev_teacher_local_student
+      long: local_student
+      recent: local_student
+      time_gap: true
+      behavior_type: true
+      fusion: gated
+      jev: distilled
+
+jev:
+  required: true_for_P3
+  endpoint_env: JEV_ENDPOINT
+  endpoint_default: https://ai.xiaohaima-edu.com/v1/systemone
+  model_env: JEV_MODEL
+  model_default: jev-latest
+  model_version: record_at_runtime
+  task: choice
+  score_formula: alpha*z_base_plus_one_minus_alpha*z_log_jev_prob
+  alpha_grid: [0.0, 0.25, 0.5, 0.75, 1.0]
+  confidence: top_probability_minus_second_probability
+  fallback_threshold: tune_on_validation
+  cache_root: logs/jev_cache
+  order_sensitivity: [original, shuffled, fixed_permutation]
+  label_sensitivity: [original_ids, renamed_ids]
+  prompt_variants: [v1_structured_json, v2_compact_json]
+  api_timeout_seconds: 30
+  max_retries: 2
+  max_error_rate_for_main_result: 0.05
+
+metrics:
+  primary: ndcg@10_conflict
+  secondary:
+    - recall@10
+    - hit@10
+    - ndcg@10
+    - mrr
+    - candidate_recall@200
+    - ece
+    - brier
+    - catalog_coverage@10
+    - ild@10
+    - novelty@10
+    - long_tail_exposure@10
+    - p50_latency_ms
+    - p95_latency_ms
+    - jev_calls_per_request
+    - cost_per_1000_requests
+  slices:
+    - conflict_strength
+    - switch
+    - train_user_length
+    - train_item_frequency
+    - session_length
+    - sequence_length
+    - candidate_recall
+
+statistics:
+  user_level_paired_test: true
+  bootstrap_samples: 1000
+  confidence_level: 0.95
+  primary_test: wilcoxon_or_paired_permutation
+  effect_size: cliffs_delta_or_paired_cohens_d
+  multiple_comparison: holm
+  min_users_for_inferential_slice: 200
+
+execution:
+  p0: dataset_stats_split_candidate_smoke
+  p1: local_baselines_and_idnp
+  p2: long_short_gap_type_ablations
+  p3: jev_cache_rerank_and_confidence_gate
+  p4: robustness_and_distillation
+  no_results_until_status_done: true

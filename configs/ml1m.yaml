@@ -1,0 +1,37 @@
+dataset: movielens_1m
+raw_root: /media/sdust307/disk2/lyk/jev_data_raw
+data_dir: data/ml1m
+checkpoint_root: /media/sdust307/disk2/lyk/jev_checkpoints
+rating_min: 4
+min_train_user_events: 10
+min_train_item_events: 5
+session_gap_seconds: 1800
+short_window: 5
+long_window_days: 180
+long_decay_days: 90
+conflict_medium: 0.2
+conflict_strong: 0.5
+candidate_sizes: [20, 50, 100, 200]
+model:
+  source: https://github.com/pmixer/SASRec.pytorch
+  revision: pending_download
+  maxlen: 200
+  hidden_units: 50
+  num_blocks: 2
+  num_heads: 1
+  dropout_rate: 0.2
+  batch_size: 128
+  learning_rate: 0.001
+  l2_emb: 0.0
+  adam_betas: [0.9, 0.98]
+  max_epochs: 200
+  eval_every: 5
+  patience_evaluations: 8
+  min_epochs: 40
+  selection_metric: validation_full_catalog_ndcg@10
+  train_sample: uniform_user_one_full_sequence_per_epoch
+  objective: pointwise_positive_negative_bce_all_nonpadding_positions
+  device: cuda
+  torch_threads: 4
+  gpu_memory_limit_gib: 2
+seeds: [2027, 2028, 2029]

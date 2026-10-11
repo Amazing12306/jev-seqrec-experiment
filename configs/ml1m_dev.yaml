@@ -1,0 +1,37 @@
+dataset: movielens_1m
+raw_root: /media/sdust307/disk2/lyk/jev_data_raw
+data_dir: data/ml1m
+checkpoint_root: /media/sdust307/disk2/lyk/jev_checkpoints
+rating_min: 4
+min_train_user_events: 10
+min_train_item_events: 5
+session_gap_seconds: 1800
+short_window: 5
+long_window_days: 180
+long_decay_days: 90
+conflict_medium: 0.2
+conflict_strong: 0.5
+candidate_sizes: [20, 50, 100, 200]
+model:
+  source: local development implementation; final baseline remains pending full protocol check
+  revision: development
+  maxlen: 50
+  hidden_units: 50
+  num_blocks: 2
+  num_heads: 1
+  dropout_rate: 0.2
+  batch_size: 512
+  learning_rate: 0.001
+  l2_emb: 0.0
+  adam_betas: [0.9, 0.98]
+  max_epochs: 20
+  eval_every: 5
+  patience_evaluations: 4
+  min_epochs: 10
+  selection_metric: validation_full_catalog_ndcg@10
+  train_sample: all_train_prefixes
+  objective: pointwise_positive_negative_bce
+  device: cuda
+  torch_threads: 4
+  gpu_memory_limit_gib: 2
+seeds: [2027]

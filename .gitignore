@@ -1,0 +1,21 @@
+# Data and generated experiment artifacts stay under data/ and are not pushed.
+data/*
+!data/.gitkeep
+results/*
+!results/dev_STATUS.md
+logs/*
+checkpoints/*
+*.pt
+*.pth
+*.jsonl
+*.csv
+*.zip
+*.parquet
+**/__pycache__/
+*.py[cod]
+.env
+.env.*
+*secret*
+*credential*
+*.key
+
