@@ -75,7 +75,7 @@ def main():
     data = ROOT / args.data
     out = ROOT / args.out
     out.mkdir(parents=True, exist_ok=True)
-    if (out / "run_manifest.json").exists() and not args.resume:
+    if (out / "run_manifest.json").exists() and not args.resume and not args.eval_only:
         raise SystemExit("Existing run: use --resume rather than overwrite")
     users = read_jsonl(data / "train.jsonl")
     valid_rows = read_jsonl(data / "valid.jsonl")
