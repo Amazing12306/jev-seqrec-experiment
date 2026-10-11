@@ -169,9 +169,11 @@ def main():
 
     train_rows = [{"user_id": u, "items": [by_asin[a]["item_id"] for a, _, _ in sorted(events[u], key=lambda x: (x[1], x[0])) if a in by_asin]}
                   for u in eligible_users]
+    train_rows = [row for row in train_rows if len(row["items"]) >= 2]
+    usable_users = {row["user_id"] for row in train_rows}
     eval_rows = {}
     for name, raw_rows in (("valid", valid_raw), ("test", test_raw)):
-        rows = [x for r in raw_rows if r["user_id"] in keep_users and r["user_id"] in events
+        rows = [x for r in raw_rows if r["user_id"] in usable_users and r["user_id"] in events
                 for x in [make_row(r, name)] if x is not None]
         eval_rows[name] = rows
     for name, rows in [("train", train_rows), *eval_rows.items()]:

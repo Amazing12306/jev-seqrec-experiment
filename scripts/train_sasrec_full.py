@@ -33,6 +33,8 @@ def sample_sequences(users, indices, maxlen, n_items, rng):
     for b, i in enumerate(indices):
         items = users[i]["items"]
         length = min(maxlen, len(items) - 1)
+        if length <= 0:
+            continue
         seq[b, -length:] = items[-length - 1:-1]
         pos[b, -length:] = items[-length:]
         excluded = set(items)
