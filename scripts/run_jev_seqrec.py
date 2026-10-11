@@ -25,7 +25,7 @@ def records(path):
                 yield json.loads(line)
 
 
-def call_jev(session, payload, api_key, max_retries):
+def call_jev(session, payload, api_key, max_retries, read_timeout):
     started = time.perf_counter()
     last_error = None
     attempts = 0
@@ -36,7 +36,7 @@ def call_jev(session, payload, api_key, max_retries):
             response = session.post(
                 os.environ.get("JEV_ENDPOINT", "https://ai.xiaohaima-edu.com/v1/systemone"),
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=payload, timeout=(20, 180))
+                json=payload, timeout=(20, read_timeout))
             request_ms = (time.perf_counter() - t0) * 1000.0
             if response.ok:
                 data = response.json()
@@ -87,6 +87,7 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--sleep", type=float, default=0.0)
     ap.add_argument("--max-retries", type=int, default=3)
+    ap.add_argument("--read-timeout", type=float, default=60.0)
     args = ap.parse_args()
     if not os.environ.get("JEV_API_KEY"):
         raise SystemExit("JEV_API_KEY is not set; no request was sent")
@@ -111,7 +112,7 @@ def main():
                 continue
             payload = {"state": req["state"], "model": model, "questions": req["questions"]}
             labels = payload["questions"]["next_item"]["criteria"]
-            answer = call_jev(session, payload, api_key, args.max_retries)
+            answer = call_jev(session, payload, api_key, args.max_retries, args.read_timeout)
             record = {
                 "case_id": case_id,
                 **answer,
