@@ -65,11 +65,19 @@ def conflict_advantage(rows_by_seed, seeds, rng, bootstrap, permutations):
             if key:
                 by_user.setdefault(user_id, {"conflict": [], "nonconflict": []})[key].append(new - base)
 
-    users = [u for u, values in by_user.items()
-             if values["conflict"] and values["nonconflict"]]
+    conflict_users = {u for u, values in by_user.items() if values["conflict"]}
+    nonconflict_users = {u for u, values in by_user.items() if values["nonconflict"]}
+    users = sorted(conflict_users & nonconflict_users)
+    if not users:
+        return {"estimable": False, "n_users_with_both": 0,
+                "n_conflict_users": len(conflict_users),
+                "n_nonconflict_users": len(nonconflict_users),
+                "reason": "No user has both conflict and eligible non-conflict cases across seeds"}
     nonconflict_gain = [float(np.mean(by_user[u]["nonconflict"])) for u in users]
     conflict_gain = [float(np.mean(by_user[u]["conflict"])) for u in users]
     result = paired_stats(nonconflict_gain, conflict_gain, rng, bootstrap, permutations)
+    result["estimable"] = True
+    result["n_users_with_both"] = len(users)
     result["unit"] = "user with both conflict and non-conflict cases"
     result["contrast"] = "conflict gain minus non-conflict gain"
     return result
