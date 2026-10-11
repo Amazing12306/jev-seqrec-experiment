@@ -56,13 +56,16 @@ def ranked_order(item_ids, values):
         zip(values, item_ids), key=lambda pair: (-pair[0], pair[1]))]
 
 
-def make_record(row, order, values, candidate_limit=200, common_pool=False):
+def make_record(row, order, values, candidate_limit=200, common_pool=False,
+                candidate_ids=None, candidate_scores=None):
     target = int(row["target_id"])
     if common_pool:
-        ids = order[:candidate_limit]
-        pool_rank = ids.index(target) + 1 if target in ids else 0
+        # Keep the original candidate order for Jev's c000... labels.  The
+        # ranking order is stored only in rank/rank_candidate.
+        ids = list(candidate_ids if candidate_ids is not None else order)[:candidate_limit]
+        pool_rank = order.index(target) + 1 if target in order else 0
         full_rank = pool_rank
-        scores = values
+        scores = list(candidate_scores if candidate_scores is not None else values)[:candidate_limit]
     else:
         ids = order[:candidate_limit]
         pool_rank = ids.index(target) + 1 if target in ids else 0
@@ -97,7 +100,8 @@ def evaluate(rows, method, popularity, transitions, candidate_limit,
             order_idx = np.argsort(-np.asarray(values), kind="stable")
             order = [item_ids[i] for i in order_idx]
             ordered_values = [values[i] for i in order_idx]
-            record = make_record(row, order, ordered_values, candidate_limit, True)
+            record = make_record(row, order, ordered_values, candidate_limit, True,
+                                 candidate_ids=item_ids, candidate_scores=values)
         else:
             item_ids = list(range(1, max(popularity.keys(), default=0) + 1))
             values = score(method, row.get("history", []), item_ids,
