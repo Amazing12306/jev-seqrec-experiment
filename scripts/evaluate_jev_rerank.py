@@ -81,8 +81,13 @@ def rerank(base, jev, alpha, confidence_threshold=None, tie_policy="base_rank"):
         target = int(row["target_id"])
         rank = final_ids.index(target) + 1 if target and target in final_ids else 0
         enriched = dict(row)
+        # Candidate files may retain both a global catalog rank (``rank``) and
+        # the frozen retriever rank within the candidate pool
+        # (``rank_candidate``).  Retrieval metrics and reranker comparisons
+        # must use the latter when it is available.
+        retriever_rank = row.get("rank_candidate", row.get("rank", 0))
         enriched.update({"rank": rank, "rank_candidate": rank, "rerank_confidence": confidence,
-                         "retriever_rank": row["rank"], "ranked_candidate_ids": final_ids,
+                         "retriever_rank": retriever_rank, "ranked_candidate_ids": final_ids,
                          "tie_policy": tie_policy,
                          "fallback_reason": fallback, "rerank_used": fallback == "used"})
         out.append(enriched)
