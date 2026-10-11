@@ -28,6 +28,9 @@ def main():
     ap.add_argument("--state-variant", choices=("full", "recent_only", "long_only", "no_gap", "no_conflict"),
                     default="full",
                     help="Ablate Jev inputs while keeping the candidate pool and case IDs fixed")
+    ap.add_argument("--rich-metadata", action="store_true",
+                    help="Include item description/features when available")
+    ap.add_argument("--metadata-char-limit", type=int, default=400)
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -36,7 +39,7 @@ def main():
     items = {int(x["item_id"]): x for x in item_rows}
     items_by_movie_id = {int(x["movie_id"]): x for x in item_rows}
     stats = json.loads((data / "dataset_stats.json").read_text(encoding="utf-8"))
-    genre_names = stats["genre_names"]
+    genre_names = stats.get("genre_names", stats.get("category_names"))
     out = root / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     count = 0
@@ -110,10 +113,17 @@ def main():
             instruction = ("Choose the candidate most likely to be the user's next positive "
                            "interaction. " + variant_instructions[args.state_variant] +
                            " Return probabilities for every option.")
-            criteria = {
-                key: (f"Movie/item title: {value['title']}; genres: {', '.join(value['genres'])}")
-                for key, value in choices.items()
-            }
+            criteria = {}
+            for key, value in choices.items():
+                description = ""
+                if args.rich_metadata:
+                    item_meta = items[int(value["item_id"])]
+                    desc = item_meta.get("description") or []
+                    features = item_meta.get("features") or []
+                    rich = " ".join([str(x) for x in desc[:2] + features[:3]])
+                    description = f"; description/features: {rich[:args.metadata_char_limit]}" if rich else ""
+                criteria[key] = (f"Item title: {value['title']}; categories: {', '.join(value['genres'])}"
+                                 + description)
             request = {
                 "case_id": case["case_id"],
                 "model": os.environ.get("JEV_MODEL", "jev-latest"),
@@ -135,6 +145,7 @@ def main():
                     "base_scores": [float(x) for x in case["candidate_scores"]],
                     "state_source": "MovieLens rating-session proxy; no target fields included",
                     "state_variant": args.state_variant,
+                    "rich_metadata": args.rich_metadata,
                     "api_called": False,
                 },
             }
