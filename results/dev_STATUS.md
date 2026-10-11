@@ -69,9 +69,9 @@
 - 候选的 SASRec 分数只保留在 `audit.base_scores`，不发送给 Jev；离线融合仍使用冻结的 base score。
 - A5000 已生成 validation request cache：`results/jev_requests/valid_seed2027.jsonl`、`valid_seed2028.jsonl`、`valid_seed2029.jsonl`，每个 5,779 条；缓存生成阶段 `api_called=false`。
 - 当前缓存 SHA-256：
-  - seed2027 `8fbab526a70cb8204b905926a35a4c6e4a37e1a5333ae225d53cf6dd5e08dfda`
-  - seed2028 `335778cd31874fec015d74a1cb7b4ad530d18bdf036e20b97da45e741d552d0f`
-  - seed2029 `a5309c0bbe55b80425ed22a9c7b841c8a89d373121e0a05d05b1299467959674`
+  - seed2027 `10993d0d007a03c3c0aa5a08a862a3dd49143b01ab64e5c5907afeca6643d811`
+  - seed2028 `dbd065cf0ceba76c7cec3a2c0b6ea17877cc6fb91abb858556f7b4f70371b16c`
+  - seed2029 `b176838c6853aac119ce3754414e284bdf5e8a1015ecb3755c0d084f304068fa`
 - A5000 检查仍显示 `JEV_API_KEY_ABSENT`；真实请求脚本在缺少 key 时退出且不创建输出文件。
 
 ## 2026-10-11 配置与仓库约定
