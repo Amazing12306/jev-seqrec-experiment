@@ -37,6 +37,26 @@
 - 输入 token：264,718,450；输出 token：70,076,154；成功请求延迟中位数 989.7 ms，P95 2,216.6 ms。
 - confidence 中位数 0.15；`confidence >= 0.4` 的比例仅 4.27%，解释了阈值策略的低 coverage。
 
+### 传统序列推荐对照
+
+- `Popularity`：训练集全局频次排序。
+- `Markov1`：训练集一阶 item-to-item 转移频次，固定 `1e-6 × popularity` 作为并列回退。
+- `GRU4Rec-style-BCE`：明确配置的循环神经基线，`maxlen=200`、hidden size 50、1 层 GRU、BCE 正负样本训练、validation early stopping；它是可复现实验配置，不宣称逐行复现某一 GRU4Rec 实现。
+
+三 seed test 均值：
+
+| 方法 | NDCG@10 | Conflict NDCG@10 | Strong conflict NDCG@10 | Candidate Recall@200 |
+|---|---:|---:|---:|---:|
+| Popularity | 0.01161 | 0.00538 | 0.00765 | 0.30386 |
+| Markov1 | 0.05324 | 0.04037 | 0.05112 | 0.44956 |
+| GRU4Rec-style-BCE | 0.04324 | 0.03414 | 0.04194 | 0.59076 |
+| full SASRec | 0.04445 | 0.04070 | 0.05036 | 0.66367 |
+| full SASRec + Jev | 0.04384 | 0.03928 | 0.04977 | 0.66367 |
+
+- Markov1 的总体 NDCG@10 比 full SASRec 高 `+0.00879`，用户级 bootstrap CI `[0.00435, 0.01330]`，paired permutation `p=0.00050`；冲突子集差值为 `−0.00034`，不显著。该结果说明当前数据上强的一阶转移先验不能省略。
+- 为隔离重排器，固定 SASRec 的 Top-200 候选池后，Markov1 为 `0.05725`，Markov1 + Jev 为 `0.05641`；差值 `−0.00084`，CI `[−0.00327, 0.00157]`，`p=0.495`。强冲突子集差值 `+0.00101`，`p=0.753`。
+- 因此 Jev 当前既没有超过 full SASRec，也没有超过固定候选池上的 Markov1；其收益不能归因于召回改善。
+
 ### 历史开发版 Jev 结果（不作为正式主结果）
 
 - 数据：MovieLens-1M 正反馈，5,779 名用户、每 seed 5,779 个 test case。三个 seed 使用相同用户集合；统计推断先在用户内平均 seed 结果，再按用户 bootstrap 和 paired sign permutation。
@@ -88,8 +108,8 @@
 ## 当前阶段与下一步
 
 1. 三 seed full-SASRec 训练、Jev validation/test cache、冻结调参和配对统计均已完成；正式结果见上文。
-2. 当前不能把 hosted Jev 的收益写成已验证结论：full-SASRec 上主比较为不显著且方向接近零，低 confidence coverage 是主要限制。
-3. 下一步接入 IDNP 官方实现；随后在带可靠文本 metadata 的 Amazon/Movies & TV 数据上重复相同协议，并加入覆盖率约束、confidence calibration、候选顺序鲁棒性和本地蒸馏对照。
+2. popularity、Markov1、GRU4Rec-style-BCE 三类传统对照已完成；Markov1 在 MovieLens 上高于 full SASRec，说明当前结论必须同时报告传统转移模型。
+3. hosted Jev 在 full SASRec 和固定候选池 Markov1 上均未显著增益；下一步接入 IDNP 官方实现，随后在带可靠文本 metadata 的 Amazon/Movies & TV 数据上重复相同协议，并加入覆盖率约束、confidence calibration、候选顺序鲁棒性和本地蒸馏对照。
 
 ## 历史 P0/P1 执行状态（2026-10-11）
 
