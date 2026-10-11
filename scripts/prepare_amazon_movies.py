@@ -184,6 +184,8 @@ def main():
              "valid": len(eval_rows["valid"]), "test": len(eval_rows["test"]),
              "max_users": args.max_users, "raw_hashes": {p.name: sha256(p) for p in (train_path, valid_path, test_path, meta_path)}}
     (out / "dataset_stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    hashes = {name: sha256(out / name) for name in ("train.jsonl", "valid.jsonl", "test.jsonl", "items.json")}
+    (out / "hashes.json").write_text(json.dumps(hashes, indent=2), encoding="utf-8")
     print(json.dumps(stats, ensure_ascii=False))
 
 
