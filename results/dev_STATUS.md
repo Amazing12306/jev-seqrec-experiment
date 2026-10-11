@@ -50,7 +50,7 @@
 
 ## 当前阻塞
 
-- Jev endpoint 已按官方文档核对；A5000 的 `llm4rec` 中仍未读到 `JEV_API_KEY`。尚未发出真实 API 请求，额度与认证可用性未验证。
+- Jev 调用 endpoint 已切换为用户提供的 `https://ai.xiaohaima-edu.com/v1/systemone`，模型为 `jev-latest`；A5000 的 `llm4rec` 中仍未读到 `JEV_API_KEY`。尚未发出真实 API 请求，额度与认证可用性未验证。
 - 请求缓存复查发现：`state.recent_movie_ids` 是 MovieLens 原始 movie ID，生成请求时错误地按编码后的 item ID 查标题。须按 `items.json` 的 `movie_id` 字段修正近期历史 metadata，然后重新生成请求缓存及 hash。该问题不涉及已报告的 SASRec 排名与类别匹配探针，但现有 Jev 请求缓存不能用于真实调用。
 - Amazon Reviews'23 尚未下载；MovieLens 结果应视为管线验证，不应承担最终语义冲突结论。
 
