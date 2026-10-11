@@ -30,14 +30,17 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--alphas", default="0,0.25,0.5,0.75,1")
     ap.add_argument("--thresholds", default="none,0.2,0.4,0.6,0.8")
+    ap.add_argument("--tie-policy", choices=["base_rank", "item_id_legacy"], default="base_rank")
     args = ap.parse_args()
 
     base = read_jsonl(ROOT / args.candidates)
+    if not base or any(row.get("split") != "valid" for row in base):
+        raise SystemExit("Parameter selection requires the validation split")
     jev = read_jsonl(ROOT / args.jev)
     results = []
     for alpha in parse_float_grid(args.alphas):
         for threshold in parse_float_grid(args.thresholds, allow_none=True):
-            records, status = rerank(base, jev, alpha, threshold)
+            records, status = rerank(base, jev, alpha, threshold, args.tie_policy)
             metrics = sliced_metrics(records)
             results.append({
                 "alpha": alpha,
@@ -47,8 +50,8 @@ def main():
             })
 
     results.sort(key=lambda x: (
-        -(x["metrics"].get("conflict", {}).get("ndcg@10") or -1),
-        -(x["metrics"].get("all", {}).get("ndcg@10") or -1),
+        -x["metrics"].get("conflict", {}).get("ndcg@10", -1),
+        -x["metrics"].get("all", {}).get("ndcg@10", -1),
         -x["status"].get("coverage", 0.0),
     ))
     out = ROOT / args.out
@@ -56,6 +59,7 @@ def main():
     out.write_text(json.dumps({
         "candidates": args.candidates,
         "jev": args.jev,
+        "tie_policy": args.tie_policy,
         "selection": "conflict.ndcg@10, then all.ndcg@10, then coverage",
         "results": results,
     }, ensure_ascii=False, indent=2), encoding="utf-8")

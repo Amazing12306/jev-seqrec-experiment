@@ -116,7 +116,9 @@ def summarize(rows):
     out["n"] = len(rows)
     out["warm_target_n"] = sum(int(r["target_known"]) for r in rows)
     for n in (20, 50, 100, 200):
-        present = [r for r in rows if 0 < r["rank"] <= n]
+        # Retrieval is frozen before reranking. Measure each pool's recall
+        # using the original retriever rank, not the reranked target position.
+        present = [r for r in rows if 0 < r.get("retriever_rank", r["rank"]) <= n]
         out[f"candidate_recall@{n}"] = len(present) / len(rows)
         out[f"conditional_ndcg@10_given_retrieved@{n}"] = (
             float(np.mean([rank_metrics(r["rank"])["ndcg@10"] for r in present])) if present else None)

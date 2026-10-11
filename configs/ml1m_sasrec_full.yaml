@@ -1,0 +1,28 @@
+dataset: movielens_1m
+data_dir: data/ml1m
+model:
+  source: https://github.com/pmixer/SASRec.pytorch
+  revision: b253407b3c5d6ec3201a39767a572f44fd5ef6d0
+  maxlen: 200
+  hidden_units: 50
+  num_blocks: 2
+  num_heads: 1
+  norm_first: false
+  dropout_rate: 0.2
+  batch_size: 128
+  eval_batch_size: 64
+  learning_rate: 0.001
+  l2_emb: 0.0
+  adam_betas: [0.9, 0.98]
+  max_epochs: 1000
+  eval_every: 5
+  patience_evaluations: 8
+  min_epochs: 40
+  exclude_seen: false
+  train_sample: shuffled_users_one_complete_sequence_per_epoch
+  objective: positive_and_negative_bce_all_nonpadding_positions
+  negative_sampler: uniform_excluding_user_training_items
+  device: cuda
+  torch_threads: 4
+  gpu_memory_limit_gib: 2
+seeds: [2027, 2028, 2029]

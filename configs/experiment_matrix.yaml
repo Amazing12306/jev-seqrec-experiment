@@ -157,7 +157,8 @@ jev:
   task: choice
   score_formula: alpha*z_base_plus_one_minus_alpha*z_log_jev_prob
   alpha_grid: [0.0, 0.25, 0.5, 0.75, 1.0]
-  confidence: top_probability_minus_second_probability
+  confidence: official_api_confidence
+  probability_tie_policy: preserve_base_rank
   fallback_threshold: tune_on_validation
   cache_root: logs/jev_cache
   order_sensitivity: [original, shuffled, fixed_permutation]

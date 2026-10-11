@@ -37,8 +37,8 @@ def main():
     if not paths:
         raise SystemExit("no Jev response files found")
 
-    # Prefer a successful response. If a case has multiple successful rows,
-    # keep the last one so a later retry can replace an earlier response.
+    # Keep the first successful response for each case. A later success can
+    # replace an error; repeated successes never select by observed accuracy.
     rows_by_case = {}
     total_rows = 0
     duplicate_rows = 0
@@ -95,6 +95,8 @@ def main():
         "failed_cases": len(failed),
         "duplicate_rows": duplicate_rows,
         "missing_expected_cases": sorted(expected_ids - all_case_ids),
+        "unexpected_cases": sorted(all_case_ids - expected_ids) if expected_ids else [],
+        "missing_successful_cases": sorted(expected_ids - {r["case_id"] for r in merged}),
         "failed_case_ids": failed,
         "error_types": dict(error_types),
     }
