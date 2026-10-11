@@ -26,7 +26,10 @@ def main():
     ap.add_argument("--parts-glob", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--manifest", required=True)
-    ap.add_argument("--expected", type=int, required=True)
+    ap.add_argument("--expected", type=int, default=None,
+                    help="Expected count when no reference JSONL is available")
+    ap.add_argument("--reference", default=None,
+                    help="Candidate JSONL whose case_id set defines expected coverage")
     args = ap.parse_args()
 
     paths = [args.pilot] + sorted(glob.glob(args.parts_glob))
@@ -71,10 +74,20 @@ def main():
             f.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
 
     all_case_ids = set(rows_by_case)
-    expected_ids = {f"valid_{i}" for i in range(1, args.expected + 1)}
+    if args.reference:
+        expected_ids = set()
+        with Path(args.reference).open(encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    expected_ids.add(json.loads(line)["case_id"])
+    elif args.expected is not None:
+        expected_ids = {f"valid_{i}" for i in range(1, args.expected + 1)}
+    else:
+        expected_ids = set()
     manifest = {
         "input_files": paths,
-        "expected_cases": args.expected,
+        "reference_file": args.reference,
+        "expected_cases": len(expected_ids) if expected_ids else args.expected,
         "total_input_rows": total_rows,
         "unique_cases": len(all_case_ids),
         "successful_cases": len(merged),
