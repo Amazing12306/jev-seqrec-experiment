@@ -13,8 +13,22 @@ import hashlib
 import json
 import math
 import random
+from bisect import bisect_right
 from collections import Counter, defaultdict
 from pathlib import Path
+
+
+# A fixed, target-independent taxonomy.  Retail/navigation labels such as
+# "Movies & TV", DVD, Blu-ray and studio storefronts are not user interests.
+SEMANTIC_CATEGORIES = {
+    "Drama", "Comedy", "Action & Adventure", "Documentary", "Kids & Family",
+    "Horror", "Science Fiction", "Science Fiction & Fantasy", "Suspense",
+    "Action", "Exercise & Fitness", "Fantasy", "Animation", "Anime",
+    "Music Videos & Concerts", "Special Interests", "Sports",
+    "Musicals & Performing Arts", "Mystery & Thrillers", "Romance",
+    "Anime & Manga", "Musicals", "Western", "Westerns", "Faith & Spirituality",
+    "Military & War", "Educational", "Foreign Films", "International",
+}
 
 
 def read_rows(path):
@@ -103,9 +117,14 @@ def main():
     ap.add_argument("--max-users", type=int, default=20000)
     ap.add_argument("--seed", type=int, default=2027)
     ap.add_argument("--session-gap-days", type=int, default=7)
+    ap.add_argument("--catalog-scope", choices=("subset", "full"), default="subset",
+                    help="Use items seen by the sampled training users (coherent retriever), or the full train catalog (cold-start study).")
+    ap.add_argument("--state-categories", choices=("all", "semantic"), default="all")
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
     raw, out = root / args.raw, root / args.out
+    if (out / "hashes.json").exists():
+        raise SystemExit("Existing dataset: choose a new experiment dataset path")
     out.mkdir(parents=True, exist_ok=True)
     train_path = raw / "Movies_and_TV.train.csv.gz"
     valid_path = raw / "Movies_and_TV.valid.csv.gz"
@@ -113,7 +132,12 @@ def main():
     meta_path = raw / "meta_Movies_and_TV.jsonl.gz"
     events = defaultdict(list)
     for row in read_rows(train_path):
-        events[row["user_id"]].append((row["parent_asin"], int(row["timestamp"]), float(row["rating"])))
+        # Amazon Reviews'23 timestamps are Unix milliseconds.  Normalize to
+        # seconds before session gaps and decay are computed.
+        timestamp = int(row["timestamp"])
+        if timestamp > 10_000_000_000:
+            timestamp //= 1000
+        events[row["user_id"]].append((row["parent_asin"], timestamp, float(row["rating"])))
     valid_raw = list(read_rows(valid_path))
     test_raw = list(read_rows(test_path))
     eligible_users = sorted(set(events) & {r["user_id"] for r in valid_raw} & {r["user_id"] for r in test_raw})
@@ -121,11 +145,13 @@ def main():
     if args.max_users and len(eligible_users) > args.max_users:
         eligible_users = sorted(rng.sample(eligible_users, args.max_users))
     keep_users = set(eligible_users)
-    # Build the item catalog from the complete train split.  The user subset
-    # controls training/evaluation size; restricting the catalog to that subset
-    # would turn most held-out items into artificial cold-start failures.
+    # Retain complete-train provenance; an ID-only retriever can learn item
+    # embeddings only for the items represented in its actual training subset.
     item_freq = Counter(asin for user in events for asin, _, _ in events[user])
     keep_asins = {asin for asin, count in item_freq.items() if count >= 5}
+    if args.catalog_scope == "subset":
+        subset_asins = {asin for user in eligible_users for asin, _, _ in events[user]}
+        keep_asins &= subset_asins
     meta = read_meta(meta_path, keep_asins)
     keep_asins &= set(meta)
     item_ids = {asin: i + 1 for i, asin in enumerate(sorted(keep_asins))}
@@ -146,30 +172,73 @@ def main():
     by_id = {x["item_id"]: x for x in items}
     by_asin = {x["asin"]: x for x in items}
 
+    subset_frequency = Counter(asin for user in eligible_users for asin, _, _ in events[user])
+    for item in items:
+        item["global_train_frequency"] = item["train_frequency"]
+        item["train_frequency"] = subset_frequency[item["asin"]]
+        if args.state_categories == "semantic":
+            item["genres"] = [x for x in item["categories"] if x in SEMANTIC_CATEGORIES] or ["Unknown"]
+    if args.state_categories == "semantic":
+        category_names = sorted({g for item in items for g in item["genres"]})
+
+    # Published validation/test histories contain observed held-out events as
+    # well as training events.  Recover these timestamps too, using strictly
+    # earlier events and only ASINs present in the supplied observed history.
+    observed = {u: list(events[u]) for u in eligible_users}
+    for row in valid_raw + test_raw:
+        if row["user_id"] in keep_users:
+            timestamp = int(row["timestamp"])
+            if timestamp > 10_000_000_000:
+                timestamp //= 1000
+            observed[row["user_id"]].append((row["parent_asin"], timestamp, float(row["rating"])))
+    positions = {}
+    for user, user_events in observed.items():
+        user_events.sort(key=lambda x: x[1])
+        lookup = defaultdict(list)
+        for index, event in enumerate(user_events):
+            lookup[event[0]].append(index)
+        positions[user] = lookup
+    audit = Counter()
+
     def make_row(row, split, row_index):
         history_asins = row.get("history", "").split()
-        user_events = sorted(events[row["user_id"]], key=lambda x: (x[1], x[0]))
+        user_events = observed[row["user_id"]]
+        lookup = positions[row["user_id"]]
+        target_timestamp = int(row["timestamp"])
+        if target_timestamp > 10_000_000_000:
+            target_timestamp //= 1000
         prefix_events = []
-        cursor = 0
+        cursor = -1
         for asin in history_asins:
-            while cursor < len(user_events) and user_events[cursor][0] != asin:
-                cursor += 1
-            if cursor >= len(user_events):
-                break
+            indexes = lookup.get(asin, [])
+            position = bisect_right(indexes, cursor)
+            if position >= len(indexes):
+                audit["unmatched_history_events"] += 1
+                continue
+            index = indexes[position]
+            event = user_events[index]
+            if event[1] >= target_timestamp:
+                audit["same_second_or_future_history_events_excluded"] += 1
+                continue
+            cursor = index
             if asin in by_asin:
-                prefix_events.append((by_asin[asin]["item_id"], user_events[cursor][1], user_events[cursor][2]))
-            cursor += 1
+                prefix_events.append((by_asin[asin]["item_id"], event[1], event[2]))
+                audit["matched_catalog_history_events"] += 1
         history = [x[0] for x in prefix_events]
         target = by_asin.get(row["parent_asin"])
         if not history:
+            audit["empty_prefix_cases_dropped"] += 1
             return None
         state = state_for(prefix_events, by_id, category_names, session_gap_days=args.session_gap_days)
         case_id = f"{split}_{row['user_id']}_{row['timestamp']}_{row['parent_asin']}_{row_index}"
         return {"case_id": case_id, "user_id": row["user_id"], "split": split,
                 "history": history, "target_id": target["item_id"] if target else 0,
+                "target_timestamp_seconds": target_timestamp,
+                "target_seen_in_global_train": row["parent_asin"] in item_freq,
                 "target_movie_id": target["item_id"] if target else 0,
                 "target_known": bool(target), "target_train_frequency": target["train_frequency"] if target else 0,
-                "train_length": len(events[row["user_id"]]), "target_timestamp_group_size": 1,
+                "train_length": sum(a in by_asin for a, _, _ in events[row["user_id"]]),
+                "target_timestamp_group_size": sum(e[1] == target_timestamp for e in user_events),
                 "state": state}
 
     train_rows = [{"user_id": u, "items": [by_asin[a]["item_id"] for a, _, _ in sorted(events[u], key=lambda x: (x[1], x[0])) if a in by_asin]}
@@ -182,6 +251,13 @@ def main():
                 if r["user_id"] in usable_users and r["user_id"] in events
                 for x in [make_row(r, name, row_index)] if x is not None]
         eval_rows[name] = rows
+    supported = {i for row in train_rows for i in row["items"]}
+    if args.catalog_scope == "subset" and supported != set(by_id):
+        # Users with only one surviving item may have introduced catalog items.
+        # Do not silently proceed with untrained catalog embeddings.
+        raise ValueError("Subset catalog contains unsupported items; increase user support or use full scope")
+    if any(r["state"]["state_cutoff"] >= r["target_timestamp_seconds"] for rows in eval_rows.values() for r in rows):
+        raise ValueError("Target-time leakage in observed prefix")
     for name, rows in [("train", train_rows), *eval_rows.items()]:
         with (out / f"{name}.jsonl").open("w", encoding="utf-8") as f:
             for row in rows:
@@ -191,6 +267,20 @@ def main():
              "users": len(train_rows), "items": len(items), "category_names": category_names,
              "valid": len(eval_rows["valid"]), "test": len(eval_rows["test"]),
              "max_users": args.max_users, "session_gap_days": args.session_gap_days,
+             "catalog_scope": args.catalog_scope,
+             "state_categories": args.state_categories,
+             "timestamp_unit": "seconds", "raw_timestamp_unit": "milliseconds",
+             "schema_version": 2,
+             "train_events": sum(len(r["items"]) for r in train_rows),
+             "positive_supported_items": len(supported),
+             "audit": dict(audit),
+             "split_stats": {name: {
+                 "users": len({r["user_id"] for r in rows}),
+                 "warm_targets": sum(r["target_known"] for r in rows),
+                 "conflict_cases": sum(r["state"]["conflict"] for r in rows),
+                 "conflict_users": len({r["user_id"] for r in rows if r["state"]["conflict"]}),
+                 "eligible_nonconflict_users": len({r["user_id"] for r in rows if r["state"]["conflict_strength"] == "none"}),
+             } for name, rows in eval_rows.items()},
              "raw_hashes": {p.name: sha256(p) for p in (train_path, valid_path, test_path, meta_path)}}
     (out / "dataset_stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     hashes = {name: sha256(out / name) for name in ("train.jsonl", "valid.jsonl", "test.jsonl", "items.json")}

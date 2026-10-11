@@ -123,6 +123,21 @@ pilot 的 paired permutation p 值（相对 SASRec base）均未达到稳定的�
 
 ## 当前阶段与下一步
 
+## 2026-10-12：Amazon Movies & TV rich metadata pilot 完成
+
+- 请求与响应完整性：plain/rich 各 126 条；case ID 均唯一；错误 0；服务模型均为 `jev-1.13.0`；API 成功率 100%。
+- 固定评估：同一 seed2027 SASRec Top-200 候选池；`alpha=0.75`；`confidence_threshold=0.0`；候选顺序 tie policy=`base_rank`。
+- 评估修复：Amazon 候选文件同时保存全目录 `rank` 与候选内 `rank_candidate`；`evaluate_jev_rerank.py` 已改为优先使用 `rank_candidate` 计算召回和 reranker 对比（commit `3f4a6fa`）。
+
+| variant | cases | target in Top-200 | candidate recall@200 | NDCG@10 | conflict NDCG@10 | strong conflict NDCG@10 |
+|---|---:|---:|---:|---:|---:|---:|
+| plain title/categories | 126 | 2 | 1.587% | 0.00000 | 0.00000 | 0.00000 |
+| rich title/categories/description/features | 126 | 2 | 1.587% | 0.00000 | 0.00000 | 0.00000 |
+
+- 两个被召回目标的 rank：plain `64→75, 197→197`；rich `64→73, 197→197`（格式为 SASRec candidate rank→Jev reranked rank）。两种输入均无 Top-10 命中。
+- 该 pilot 的主要结果是候选召回受限：Top-200 recall=1.59%，不能据此判断 rich metadata 是否提升 Jev 的排序能力；plain/rich 的 NDCG 差异不具备可解释的统计基础。
+- 原始响应、请求、评估 JSON 均保留在 A5000 `results/amazon_pilot/`，不进入 Git。下一步停止扩大该 pilot，先修复 Amazon 召回管线或接入 IDNP/多兴趣编码器，再在目标进入候选池的条件下重做 rich metadata 对比。
+
 1. 三 seed full-SASRec 训练、Jev validation/test cache、冻结调参和配对统计均已完成；正式结果见上文。
 2. popularity、Markov1、GRU4Rec-style-BCE 三类传统对照已完成；Markov1 在 MovieLens 上高于 full SASRec，说明当前结论必须同时报告传统转移模型。
 3. hosted Jev 在 full SASRec 和固定候选池 Markov1 上均未显著增益；下一步接入 IDNP 官方实现，随后在带可靠文本 metadata 的 Amazon/Movies & TV 数据上重复相同协议，并加入覆盖率约束、confidence calibration、候选顺序鲁棒性和本地蒸馏对照。
