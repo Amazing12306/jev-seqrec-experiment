@@ -27,7 +27,12 @@ def jev_score(record):
     candidate_ids = record["candidate_ids"]
     values = np.asarray([max(float(probs.get(f"c{i:03d}", 0.0)), 1e-12)
                         for i in range(len(candidate_ids))])
-    return values, float(values.max() - np.partition(values, -2)[-2]) if len(values) > 1 else 0.0
+    raw_confidence = record.get("confidence")
+    try:
+        confidence = float(raw_confidence) if raw_confidence is not None else None
+    except (TypeError, ValueError):
+        confidence = None
+    return values, confidence
 
 
 def rerank(base, jev, alpha, confidence_threshold=None):
@@ -43,13 +48,15 @@ def rerank(base, jev, alpha, confidence_threshold=None):
         if api is not None:
             probs, confidence = jev_score({"candidate_ids": base_ids, **api})
             if len(probs) == len(base_ids) and np.isfinite(probs).all() and float(probs.sum()) > 0:
-                if confidence_threshold is None or confidence >= confidence_threshold:
+                confidence_ok = (confidence_threshold is None or
+                                 (confidence is not None and confidence >= confidence_threshold))
+                if confidence_ok:
                     final = alpha * z(base_scores) + (1.0 - alpha) * z(np.log(probs))
                     final_ids = [x for _, x in sorted(zip(final, base_ids), reverse=True)]
                     used += 1
                     fallback = "used"
                 else:
-                    fallback = "low_confidence"
+                    fallback = "missing_confidence" if confidence is None else "low_confidence"
             else:
                 invalid += 1
                 fallback = "invalid_response"
