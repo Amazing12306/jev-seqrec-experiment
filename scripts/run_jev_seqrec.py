@@ -45,12 +45,20 @@ def call_jev(session, payload, api_key, max_retries):
                 expected = set(payload["questions"]["next_item"]["criteria"])
                 if set(probs) != expected or not all(math.isfinite(v) and 0 <= v <= 1 for v in probs.values()):
                     raise ValueError("invalid or incomplete candidate probability distribution")
-                if abs(sum(probs.values()) - 1.0) > 0.01:
+                raw_probability_sum = float(sum(probs.values()))
+                if raw_probability_sum <= 0 or abs(raw_probability_sum - 1.0) > 0.02:
                     raise ValueError("candidate probabilities do not sum to one")
+                # The service rounds probabilities to two decimals in some
+                # responses (for example, a valid distribution can sum to
+                # 0.99). Normalize after validation and retain the raw sum for
+                # auditability.
+                if raw_probability_sum != 1.0:
+                    probs = {key: value / raw_probability_sum for key, value in probs.items()}
                 usage = data.get("usage") or {}
                 return {
                     "probabilities": probs, "choice": answer.get("choice"),
                     "confidence": answer.get("confidence"), "model": data.get("model"),
+                    "raw_probability_sum": raw_probability_sum,
                     "success_latency_ms": request_ms,
                     "end_to_end_latency_ms": (time.perf_counter() - started) * 1000.0,
                     "attempts": attempts, "error": None,
@@ -65,6 +73,7 @@ def call_jev(session, payload, api_key, max_retries):
         if attempt < max_retries:
             time.sleep(2.0 * (2 ** attempt))
     return {"probabilities": {}, "choice": None, "confidence": None, "model": None,
+            "raw_probability_sum": None,
             "success_latency_ms": None,
             "end_to_end_latency_ms": (time.perf_counter() - started) * 1000.0,
             "attempts": attempts, "error": last_error,
