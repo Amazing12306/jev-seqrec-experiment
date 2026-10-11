@@ -50,9 +50,9 @@
 
 ## 当前阶段与下一步
 
-1. 等待 A5000 上的共享 GPU 训练释放后，按固定的上游 SASRec revision 和完整配置运行三个 seed；当前 GPU 长时间处于 98–100% 利用率，完整基线尚未启动。
-2. 基于完整 SASRec 的 validation/test 候选集重做 Jev 验证与冻结参数，再做 test 配对比较；当前开发版结果不能替代这一步。
-3. 完整 SASRec × Jev 结果完成后，再接入 IDNP 官方实现并扩展到带文本 metadata 的数据集，评估外部有效性。
+1. 完整 SASRec seed2027 已按 pinned revision 和完整配置完成：best epoch 80；test NDCG@10=0.04273，candidate recall@200=0.66205。seed2028、seed2029 完整训练仍在 A5000 运行。
+2. full-SASRec seed2027/2028 的 Jev validation cache 已启动；完成后在 validation 冻结融合参数，再调用 full-SASRec test。当前开发版 Jev 结果不能替代 full-SASRec 比较。
+3. 三 seed full-SASRec × Jev 完成后，再接入 IDNP 官方实现并扩展到带文本 metadata 的数据集，评估外部有效性。
 
 ## 历史 P0/P1 执行状态（2026-10-11）
 
