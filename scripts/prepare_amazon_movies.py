@@ -102,6 +102,7 @@ def main():
     ap.add_argument("--out", default="data/amazon_movies")
     ap.add_argument("--max-users", type=int, default=20000)
     ap.add_argument("--seed", type=int, default=2027)
+    ap.add_argument("--session-gap-days", type=int, default=7)
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
     raw, out = root / args.raw, root / args.out
@@ -120,7 +121,10 @@ def main():
     if args.max_users and len(eligible_users) > args.max_users:
         eligible_users = sorted(rng.sample(eligible_users, args.max_users))
     keep_users = set(eligible_users)
-    item_freq = Counter(asin for user in keep_users for asin, _, _ in events[user])
+    # Build the item catalog from the complete train split.  The user subset
+    # controls training/evaluation size; restricting the catalog to that subset
+    # would turn most held-out items into artificial cold-start failures.
+    item_freq = Counter(asin for user in events for asin, _, _ in events[user])
     keep_asins = {asin for asin, count in item_freq.items() if count >= 5}
     meta = read_meta(meta_path, keep_asins)
     keep_asins &= set(meta)
@@ -159,7 +163,7 @@ def main():
         target = by_asin.get(row["parent_asin"])
         if not history:
             return None
-        state = state_for(prefix_events, by_id, category_names)
+        state = state_for(prefix_events, by_id, category_names, session_gap_days=args.session_gap_days)
         return {"case_id": f"{split}_{row['user_id']}", "user_id": row["user_id"], "split": split,
                 "history": history, "target_id": target["item_id"] if target else 0,
                 "target_movie_id": target["item_id"] if target else 0,
@@ -184,7 +188,8 @@ def main():
     stats = {"dataset": "Amazon Reviews'23 Movies_and_TV 5-core timestamp_w_his",
              "users": len(train_rows), "items": len(items), "category_names": category_names,
              "valid": len(eval_rows["valid"]), "test": len(eval_rows["test"]),
-             "max_users": args.max_users, "raw_hashes": {p.name: sha256(p) for p in (train_path, valid_path, test_path, meta_path)}}
+             "max_users": args.max_users, "session_gap_days": args.session_gap_days,
+             "raw_hashes": {p.name: sha256(p) for p in (train_path, valid_path, test_path, meta_path)}}
     (out / "dataset_stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     hashes = {name: sha256(out / name) for name in ("train.jsonl", "valid.jsonl", "test.jsonl", "items.json")}
     (out / "hashes.json").write_text(json.dumps(hashes, indent=2), encoding="utf-8")
