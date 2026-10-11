@@ -1,0 +1,24 @@
+dataset: movielens_1m
+data_dir: data/ml1m
+model:
+  name: GRU4Rec-style-BCE
+  maxlen: 200
+  hidden_units: 50
+  num_layers: 1
+  dropout_rate: 0.2
+  batch_size: 128
+  eval_batch_size: 64
+  learning_rate: 0.001
+  adam_betas: [0.9, 0.98]
+  max_epochs: 300
+  eval_every: 5
+  patience_evaluations: 8
+  min_epochs: 40
+  exclude_seen: false
+  train_sample: shuffled_users_one_complete_sequence_per_epoch
+  objective: positive_and_negative_bce_all_nonpadding_positions
+  negative_sampler: uniform_excluding_user_training_items
+  device: cuda
+  torch_threads: 4
+  gpu_memory_limit_gib: 2
+seeds: [2027, 2028, 2029]
